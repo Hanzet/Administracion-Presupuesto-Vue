@@ -1,7 +1,104 @@
 <script setup>
+import { ref, computed } from "vue";
 import cerrarModal from "../assets/img/cerrar.svg";
+import Alerta from "./Alerta.vue";
 
-const emit = defineEmits(["ocultar-modal"]);
+const error = ref("");
+
+const emit = defineEmits([
+  "ocultar-modal",
+  "guardar-gasto",
+  "update:nombre",
+  "update:cantidad",
+  "update:categoria",
+  "eliminar-gasto",
+]);
+
+const props = defineProps({
+  modal: {
+    type: Object,
+    required: true,
+  },
+  nombre: {
+    type: String,
+    required: true,
+  },
+  cantidad: {
+    type: [String, Number],
+    required: true,
+  },
+  categoria: {
+    type: String,
+    required: true,
+  },
+  disponible: {
+    type: Number,
+    required: true,
+  },
+  id: {
+    type: [String, null],
+    required: true,
+  },
+});
+
+// console.log(props.id); // Para ver el id del gasto
+// console.log(props.cantidad); // Para ver la cantidad del gasto
+
+const old = props.cantidad; // Para guardar la cantidad anterior del gasto (En react, hace un render completo de la aplicación, vue hace un render parcial)
+
+const agregarGasto = () => {
+  // Validar que no haya campos vacíos
+  // console.log(props); // Para ver los datos del/os prop's
+
+  // Destructuring para obtener los datos de los props
+  const { nombre, cantidad, categoria, disponible, id } = props;
+
+  if ([nombre, cantidad, categoria].includes("")) {
+    // console.log('No se puede agregar un gasto con campos vacíos');
+    error.value = "Todos los campos son obligatorios";
+    setTimeout(() => {
+      error.value = "";
+    }, 3000);
+    return;
+  }
+
+  // Validar que la cantidad
+  if (cantidad <= 0) {
+    // console.log('La cantidad no es un número');
+    error.value = "Cantidad no válida";
+    setTimeout(() => {
+      error.value = "";
+    }, 3000);
+    return;
+  }
+
+  // Validar que el usuario no gaste más de lo disponible
+  if (id) {
+    // Tomar en cuenta el gasto ya realizado
+    if (cantidad > old + disponible) {
+      error.value = "No puedes exceder tu presupuesto";
+      setTimeout(() => {
+        error.value = "";
+      }, 3000);
+      return;
+    }
+  } else {
+    if (cantidad > disponible) {
+      error.value = "El gasto no puede ser mayor al presupuesto disponible";
+      setTimeout(() => {
+        error.value = "";
+      }, 3000);
+      return;
+    }
+  }
+
+  // console.log("Todo bien");
+  emit("guardar-gasto");
+};
+
+const isEditing = computed(() => {
+  return props.id;
+});
 </script>
 
 <template>
@@ -14,9 +111,16 @@ const emit = defineEmits(["ocultar-modal"]);
       />
     </div>
 
-    <div class="contenedor">
-      <form class="nuevo-gasto">
-        <legend>Añadir Gasto</legend>
+    <div
+      class="contenedor contenedor-formulario"
+      :class="[modal.animar ? 'animar' : 'cerrar']"
+    >
+      <form class="nuevo-gasto" @submit.prevent="agregarGasto">
+        <legend>{{ isEditing ? "Guardar Cambios" : "Añadir Gasto" }}</legend>
+
+        <Alerta v-if="error">
+          {{ error }}
+        </Alerta>
 
         <div class="campo">
           <label for="nombre">Nombre del Gasto:</label>
@@ -24,6 +128,8 @@ const emit = defineEmits(["ocultar-modal"]);
             type="text"
             id="nombre"
             placeholder="Añade el nombre del gasto"
+            :value="nombre"
+            @input="$emit('update:nombre', $event.target.value)"
           />
         </div>
 
@@ -33,6 +139,8 @@ const emit = defineEmits(["ocultar-modal"]);
             type="number"
             id="cantidad"
             placeholder="Añade la cantidad del gasto"
+            :value="cantidad"
+            @input="$emit('update:cantidad', Number($event.target.value))"
           />
         </div>
 
@@ -42,6 +150,8 @@ const emit = defineEmits(["ocultar-modal"]);
             id="categoria"
             name="categoria"
             placeholder="Seleccione la categoría"
+            :value="categoria"
+            @input="$emit('update:categoria', $event.target.value)"
           >
             <option value="">-- Seleccione --</option>
             <option value="ahorro">Ahorro</option>
@@ -53,9 +163,21 @@ const emit = defineEmits(["ocultar-modal"]);
             <option value="suscripciones">Suscripciones</option>
           </select>
 
-          <input type="submit" value="Añadir Gasto" />
+          <input
+            type="submit"
+            :value="[isEditing ? 'Guardar Cambios' : 'Añadir Gasto']"
+          />
         </div>
       </form>
+
+      <button
+        type="button"
+        class="btn-eliminar"
+        v-if="isEditing"
+        @click="$emit('eliminar-gasto')"
+      >
+        Eliminar Gasto
+      </button>
     </div>
   </div>
 </template>
@@ -76,6 +198,21 @@ const emit = defineEmits(["ocultar-modal"]);
   top: 3rem;
 }
 
+.contenedor-formulario {
+  transition-property: all;
+  transition-duration: 300ms;
+  transition-timing-function: ease-in;
+  opacity: 0;
+}
+
+.contenedor-formulario.animar {
+  opacity: 1;
+}
+
+.contenedor-formulario.cerrar {
+  opacity: 0;
+}
+
 .cerrar-modal img {
   width: 3rem;
   cursor: pointer;
@@ -88,10 +225,10 @@ const emit = defineEmits(["ocultar-modal"]);
 }
 
 .nuevo-gasto legend {
-    text-align: center;
-    color: var(--blanco);
-    font-size: 3rem;
-    font-weight: 700;
+  text-align: center;
+  color: var(--blanco);
+  font-size: 3rem;
+  font-weight: 700;
 }
 
 .campo {
@@ -114,9 +251,21 @@ const emit = defineEmits(["ocultar-modal"]);
 }
 
 .nuevo-gasto input[type="submit"] {
-    background-color: var(--azul);
-    color: var(--blanco);
-    font-weight: 700;
-    cursor: pointer;
+  background-color: var(--azul);
+  color: var(--blanco);
+  font-weight: 700;
+  cursor: pointer;
+}
+
+.btn-eliminar {
+  border: none;
+  padding: 1rem;
+  width: 100%;
+  background-color: #ef4444;
+  font-weight: 700;
+  font-size: 1.12rem;
+  color: var(--blanco);
+  margin-top: 10rem;
+  cursor: pointer;
 }
 </style>
